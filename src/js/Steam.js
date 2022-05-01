@@ -79,18 +79,15 @@ class Steam {
       this.getSteamPath().then((steamPath) => {
         const parsedLibFolders = VDF.parse(fs.readFileSync(join(steamPath, 'steamapps', 'libraryfolders.vdf'), 'utf-8'));
         const games = [];
-        const libraries = [];
 
-        // Add Steam install dir
-        libraries.push(steamPath);
+        // Load extra library paths from libraryfolders.vdf
+        const extraLibraries = Object.entries(parsedLibFolders.LibraryFolders || parsedLibFolders.libraryfolders || {})
+          .filter(([key]) => !Number.isNaN(parseInt(key, 10)))
+          .filter(([_, library]) => typeof library === 'string' || library.mounted !== 0)
+          .map(([_, library]) => typeof library === 'string' ? library : library.path);
 
-        // Add library folders from libraryfolders.vdf
-        Object.keys(parsedLibFolders.LibraryFolders).forEach((key) => {
-          const library = parsedLibFolders.LibraryFolders[key];
-          if (!Number.isNaN(parseInt(key, 10))) {
-            libraries.push(library);
-          }
-        });
+        // Add Steam install dir and extra libraries
+        const libraries = [steamPath, ...extraLibraries]
 
         log.info(`Found ${libraries.length} Steam libraries`);
 
@@ -148,6 +145,10 @@ class Steam {
               const appid = this.generateNewAppId(exe, appName);
               const appidold = this.generateAppId(exe, appName);
               const configId = metrohash64(exe + item.LaunchOptions);
+              const appid = (item.appid) ?
+                (item.appid >>> 0) : //bitwise unsigned 32 bit ID of manually added non-steam game
+                this.generateNewAppId(exe, appName);
+              
 
               if (store.has(`games.${configId}`)) {
                 const storedGame = store.get(`games.${configId}`);
